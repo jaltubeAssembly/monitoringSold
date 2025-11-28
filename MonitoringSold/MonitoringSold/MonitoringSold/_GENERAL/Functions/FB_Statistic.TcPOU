@@ -1,0 +1,272 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_Statistic" Id="{f8c8afce-dcce-4abd-ae4d-ed1586048296}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_Statistic
+VAR PERSISTENT
+	bSaved:BOOL;
+	Data:STRUCT_StatisticsData;
+	DataSaved:STRUCT_StatisticsData;
+	udiSamplesToSave:UDINT:=500;
+	udiSamplesCounter:UDINT:=0;
+END_VAR
+VAR_INPUT
+	bReset:BOOL;
+	bRestore:BOOL;
+END_VAR
+VAR_OUTPUT
+	rZScore:REAL;
+END_VAR
+VAR
+	rValue:REAL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Calcs" Id="{4c417586-d4e3-4952-b697-78d15fa4ce66}" />
+    <Method Name="M_calc_coef" Id="{3cab2314-2535-45da-9346-cdf0f8f5bd0b}" FolderPath="Calcs\">
+      <Declaration><![CDATA[METHOD PRIVATE M_calc_coef
+VAR
+	rCounter:REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[// Check counter and cast to real
+IF THIS^.Data.udiCounter=0 THEN
+	rCounter:=1;
+END_IF
+rCounter:=UDINT_TO_REAL(THIS^.Data.udiCounter);
+// CALCULATE
+// =======================================================
+THIS^.Data.rStatCoef:=MAX((1/rCounter),THIS^.Data.rStatCoefMin);
+// =======================================================]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_calc_dev" Id="{7e7b151d-ffd8-4227-b125-ce70e7a488a1}" FolderPath="Calcs\">
+      <Declaration><![CDATA[METHOD PRIVATE M_calc_dev
+VAR
+	rRes:REAL;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF THIS^.Data.rStatCoef=0 OR THIS^.Data.rStatCoef=1 THEN
+	THIS^.Data.rDevSum:=0;
+ELSE
+	IF (THIS^.rValue-THIS^.Data.rMean)=0 THEN
+		rRes:=0;
+	ELSE
+		rRes:=EXPT(THIS^.rValue-THIS^.Data.rMean,2);
+	END_IF
+	THIS^.Data.rDevSum :=	((1-THIS^.Data.rStatCoef)*THIS^.Data.rDevSum) + 
+							(THIS^.Data.rStatCoef*rRes);
+END_IF
+
+IF THIS^.Data.rDevSum=0 THEN
+	THIS^.Data.rDev:=0;
+ELSE
+	THIS^.Data.rDev:=SQRT(THIS^.Data.rDevSum);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_calc_mean" Id="{52ae314d-b209-4612-8880-db6276d84835}" FolderPath="Calcs\">
+      <Declaration><![CDATA[METHOD PRIVATE M_calc_mean
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF THIS^.Data.rStatCoef=1 THEN
+	THIS^.Data.rMean:=THIS^.rValue;
+ELSE
+	IF THIS^.Data.rStatCoef<>0 THEN
+		THIS^.Data.rMean := ((1-THIS^.Data.rStatCoef)*THIS^.Data.rMean) + 
+							(THIS^.Data.rStatCoef*THIS^.rValue);
+	end_if
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_calc_min_max" Id="{805b42f2-9fbc-4e8d-9a68-902a5847bf79}" FolderPath="Calcs\">
+      <Declaration><![CDATA[METHOD PRIVATE M_calc_min_max]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF THIS^.Data.udiCounter=1 THEN
+	THIS^.Data.rMaximum:=THIS^.rValue;
+	THIS^.Data.rMinimum:=THIS^.rValue;
+END_IF
+THIS^.Data.rMinimum:=MIN(THIS^.Data.rMinimum,THIS^.rValue);
+THIS^.Data.rMaximum:=MAX(THIS^.Data.rMaximum,THIS^.rValue);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_is_typical" Id="{31378273-d22e-493c-a09a-dcf835242b2f}">
+      <Declaration><![CDATA[METHOD M_is_typical : BOOL	// >Return if the current value is in a typical frequence
+VAR_INPUT
+	freqTypical:REAL;		// Typical frequence
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[THIS^.rZScore := ABS((THIS^.Data.rMean - THIS^.DataSaved.rMean) / THIS^.DataSaved.rDev);
+M_is_typical := THIS^.Data.rMean <= THIS^.DataSaved.rMean- (freqTypical*THIS^.DataSaved.rDev) OR
+				THIS^.Data.rMean >= THIS^.DataSaved.rMean+ (freqTypical*THIS^.DataSaved.rDev);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_reset" Id="{5a4e3e7d-6834-4936-be4a-63521f7e820f}">
+      <Declaration><![CDATA[METHOD PRIVATE M_reset]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF THIS^.bReset THEN
+	THIS^.Data.udiCounter:=1;
+	THIS^.Data.rStatCoef:=0;
+	THIS^.Data.rMinimum:=0;
+	THIS^.Data.rMaximum:=0;
+	THIS^.Data.rMean:=0;
+	THIS^.Data.rDevSum:=0;
+	THIS^.Data.rDev:=0;
+	THIS^.bSaved:=FALSE;
+	THIS^.udiSamplesCounter:=0;
+	THIS^.bReset:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_restore" Id="{fea33ed9-b3fa-4a8c-b3a7-208c8b903e11}">
+      <Declaration><![CDATA[METHOD PRIVATE M_restore
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF THIS^.bRestore THEN
+	THIS^.Data := THIS^.DataSaved;
+	THIS^.bRestore:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_run" Id="{3970a310-8d40-4294-ace8-0425422f9804}">
+      <Declaration><![CDATA[METHOD M_run
+VAR_INPUT
+	rStatCoefMin:REAL;
+	rCurrentValue:REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[// Reset data
+THIS^.M_reset();
+// Restore data
+THIS^.M_restore();
+// Get current data
+THIS^.Data.rStatCoefMin:=rStatCoefMin;
+THIS^.rValue:=rCurrentValue;
+// Calcs
+THIS^.M_calc_coef();
+THIS^.M_calc_min_max();
+THIS^.M_calc_mean();
+THIS^.M_calc_dev();
+// Save data
+THIS^.M_save();
+// Update counter
+IF THIS^.Data.udiCounter<4294967295 THEN
+	THIS^.Data.udiCounter:=THIS^.Data.udiCounter+1;
+END_IF
+// Update coef counter until coef value if the minumum
+IF THIS^.Data.rStatCoefMin<THIS^.Data.rStatCoef THEN
+	THIS^.Data.udiCounterCoef:=THIS^.Data.udiCounterCoef+1;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_save" Id="{8884862c-a92e-4361-bf2f-df32cf50988a}">
+      <Declaration><![CDATA[METHOD PRIVATE M_save]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT THIS^.bSaved THEN
+	IF THIS^.udiSamplesCounter<THIS^.udiSamplesToSave THEN
+		THIS^.udiSamplesCounter:=THIS^.udiSamplesCounter+1;
+	ELSE
+		THIS^.DataSaved:=THIS^.Data;
+		THIS^.bSaved:=TRUE;
+		THIS^.udiSamplesCounter:=0;
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_Statistic">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_calc_coef">
+      <LineId Id="18" Count="0" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="19" Count="1" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_calc_dev">
+      <LineId Id="6" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="26" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_calc_mean">
+      <LineId Id="5" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_calc_min_max">
+      <LineId Id="6" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_is_typical">
+      <LineId Id="11" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="10" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_reset">
+      <LineId Id="14" Count="0" />
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="9" Count="2" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_restore">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_run">
+      <LineId Id="19" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="30" Count="1" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="21" Count="4" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="27" Count="2" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="16" Count="2" />
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Statistic.M_save">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

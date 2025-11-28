@@ -1,0 +1,86 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_Predictive" Id="{2036f947-9e4d-47ed-8629-ab9129c21978}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_Predictive
+VAR PERSISTENT
+	rStatCoefMin:REAL:=0.0025;
+	rFreqMean:REAL:=1.5;
+	rFreqDev:REAL:=1.5;
+END_VAR
+VAR_INPUT
+	bReset:BOOL;
+END_VAR
+VAR_OUTPUT
+	bWarningMean:BOOL;
+	bWarningDev:BOOL;
+END_VAR
+VAR
+	fbStatistic:FB_Statistic;
+	fbStatisticDev:FB_Statistic;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="M_check" Id="{74b4c88d-131c-4819-b217-dc360cc3402f}">
+      <Declaration><![CDATA[METHOD PRIVATE M_check
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF THIS^.fbStatistic.bSaved THEN
+	THIS^.bWarningMean	:= 	THIS^.fbStatistic.M_is_typical(freqTypical:=THIS^.rFreqMean);
+	THIS^.bWarningDev 	:= 	THIS^.fbStatisticDev.M_is_typical(freqTypical:=THIS^.rFreqDev);
+ELSE
+	THIS^.bWarningMean:=FALSE;
+	THIS^.bWarningDev:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_run" Id="{6069251c-0dd0-4f1f-812e-75f9ff48d900}">
+      <Declaration><![CDATA[METHOD M_run
+VAR_INPUT
+	rValue:REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF THIS^.bReset THEN
+	THIS^.fbStatistic.bReset:=TRUE;
+	THIS^.fbStatisticDev.bReset:=TRUE;
+	THIS^.bReset:=FALSE;
+END_IF
+
+THIS^.fbStatistic.M_run(rStatCoefMin:=THIS^.rStatCoefMin,
+						rCurrentValue:=rValue);
+						
+THIS^.fbStatisticDev.M_run(	rStatCoefMin:=THIS^.rStatCoefMin,
+							rCurrentValue:=THIS^.fbStatistic.Data.rDev);
+							
+THIS^.M_check();]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_Predictive">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Predictive.M_check">
+      <LineId Id="6" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="7" Count="1" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Predictive.M_run">
+      <LineId Id="5" Count="1" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="17" Count="1" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

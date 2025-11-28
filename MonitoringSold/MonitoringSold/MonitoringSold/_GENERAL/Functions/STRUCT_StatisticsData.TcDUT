@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <DUT Name="STRUCT_StatisticsData" Id="{317d3d90-64c2-4eef-a8d6-9605f69b2719}">
+    <Declaration><![CDATA[TYPE STRUCT_StatisticsData :
+STRUCT
+	udiCounter:UDINT:=1;
+	udiCounterCoef:UDINT:=1;
+	rStatCoefMin:REAL:=0.05;
+	rStatCoef:REAL;
+	rMinimum:REAL;
+	rMaximum:REAL;
+	rMean:REAL;
+	rDevSum:REAL;
+	rDev:REAL;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>
